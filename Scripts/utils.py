@@ -4,8 +4,9 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.model_selection import StratifiedShuffleSplit
 
 
-def data_to_bow(clean_content, max_text_len=5000):
-    vectorizer = CountVectorizer(analyzer="word",
+def data_to_bow(clean_content, analyzer="word", ngram_range=(1, 1), max_text_len=5000):
+    vectorizer = CountVectorizer(analyzer=analyzer,
+                                 ngram_range=ngram_range,
                                  tokenizer=None,
                                  preprocessor=None,
                                  stop_words=None,
@@ -18,8 +19,9 @@ def data_to_bow(clean_content, max_text_len=5000):
     return data_features.toarray(), vectorizer
 
 
-def data_to_tfidf(clean_content, max_text_len=5000):
-    vectorizer = TfidfVectorizer(analyzer="word",
+def data_to_tfidf(clean_content, analyzer="word", ngram_range=(1, 1), max_text_len=5000):
+    vectorizer = TfidfVectorizer(analyzer=analyzer,
+                                 ngram_range=ngram_range,
                                  tokenizer=None,
                                  preprocessor=None,
                                  stop_words=None,
@@ -37,8 +39,15 @@ def split_train_val(data_features, labels, split_rate=0.8):
                data_features[val_index], labels[val_index]
 
 
-# def get_train_val(filepath, split_rate=0.8, tfidf=False):
-#     clean_reviews, labels = get_clean_data(filepath, train=True)
-#     data_features, vectorizer = data_to_bow(clean_reviews, tfidf=True)
-#     return split_train_val(data_features, labels, split_rate=0.8)
+def batch_iter(x, y, batch_size=64):
+    data_len = len(x)
+    num_batch = int((data_len - 1) / batch_size) + 1
 
+    indices = np.random.permutation(np.arange(data_len))
+    x_shuffle = x[indices]
+    y_shuffle = y[indices]
+
+    for i in range(num_batch):
+        start_id = i * batch_size
+        end_id = min((i + 1) * batch_size, data_len)
+        yield x_shuffle[start_id: end_id], y_shuffle[start_id: end_id]
