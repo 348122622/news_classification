@@ -5,6 +5,7 @@ from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from Scripts.data_helper import get_clean_data
 from Scripts.utils import data_to_bow, data_to_tfidf, split_train_val
+from Scripts.config import *
 
 
 def train(data):
@@ -46,21 +47,35 @@ def eval(y, y_pred):
 
 
 if __name__ == '__main__':
-    data_dir = os.path.join(os.path.abspath('..'), 'data')
-    tech_path = os.path.join(data_dir, 'tech_data', 'tech_train.csv')
-    clean_content, labels = get_clean_data(tech_path, train=True)
-    # data_features, vectorizer = data_to_bow(clean_content)
-    data_features, vectorizer = data_to_tfidf(clean_content, ngram_range=(1, 3))
-    x_train, y_train, x_val, y_val = split_train_val(data_features, labels, split_rate=0.8)
-    # cls = train((x_train, y_train, x_val, y_val))
+    train_csvs = [FINACE_TRAIN_PATH, TECH_TRAIN_PATH, WORLD_TRAIN_PATH]
+    train_path = train_csvs[2]
+    test_csvs = [FINACE_TEST_PATH, TECH_TEST_PATH, WORLD_TEST_PATH]
+    test_path = test_csvs[2]
 
-    tech_test_path = os.path.join(data_dir, 'tech_data', 'tech_test.csv')
-    clean_content_test, labels_test = get_clean_data(tech_test_path, train=True)
+    # train and val data preprocessing
+    clean_content, labels = get_clean_data(train_path, train=True)
+    clean_content_test, labels_test = get_clean_data(test_path, train=True)
+
+    # data_features, vectorizer = data_to_bow(clean_content, analyzer="char",
+    #                                         ngram_range=(1, 3), max_text_len=5000)
+    data_features, vectorizer = data_to_tfidf(clean_content, analyzer="char",
+                                              ngram_range=(1, 3), max_text_len=5000)
+
+    # test data preprocessing
+
     data_features_test = vectorizer.transform(clean_content_test).toarray()
 
+    # cross validation
+    cv_results = train_cv(data_features, labels)
+
+    # train
     cls = RandomForestClassifier(n_estimators=100, n_jobs=-1)
     cls.fit(data_features, labels)
-    labels_pred = cls.predict(data_features_test)
-    eval(labels_test, labels_pred)
+    labels_pred = cls.predict(data_features)
+    eval(labels, labels_pred)
+
+    # test
+    labels_test_pred = cls.predict(data_features_test)
+    eval(labels_test, labels_test_pred)
 
 

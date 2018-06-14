@@ -1,18 +1,11 @@
 # coding=utf-8
-import sys
-import os
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import StratifiedShuffleSplit
+import jieba
 import jieba.posseg as pseg
 
-sys.path.append(os.path.abspath('..'))
-
-data_dir = os.path.join(os.path.abspath('..'), 'data')
-finance_path = os.path.join(data_dir, 'finance_data', 'train_data')
-tech_path = os.path.join(data_dir, 'tech_data', 'train_data')
-world_train_path = os.path.join(data_dir, 'world_data', 'train_data')
-world_test_path = os.path.join(data_dir, 'world_data', 'test_data')
+from Scripts.config import *
 
 
 def open_file(filename):
@@ -62,14 +55,19 @@ def get_data(csv_path, train=True):
     return data['类别'].values, data['标题'].values, data['内容'].values
 
 
-def content_to_words(raw_content):
-    seg_line = pseg.cut(raw_content, HMM=True)
-    words = ''
-    for word, flag in seg_line:
-        if flag != 'x':
-            words += word
-            words += ' '
-    return words.strip()
+def content_to_words(raw_content, use_pseg=False):
+    # 去符号
+    if use_pseg is True:
+        seg_line = pseg.cut(raw_content, HMM=True)
+        words = ''
+        for word, flag in seg_line:
+            if flag != 'x':
+                words += word
+                words += ' '
+        return words.strip()
+    # 不去符号
+    seg_line = jieba.cut(raw_content, HMM=True)
+    return ' '.join(seg_line)
 
 
 def get_clean_data(filepath, train=True):
@@ -110,4 +108,4 @@ if __name__ == '__main__':
     # title_test = title[test_index]
     # content_test = content[test_index]
     # to_csv(os.path.join(data_dir, 'finance_data', 'finance_test.csv'), labels_test, cmid_test, title_test, content_test)
-    content, labels = get_clean_data(os.path.join(data_dir, 'finance_data', 'finance_test.csv'))
+    content, labels = get_clean_data(FINACE_TRAIN_PATH)
