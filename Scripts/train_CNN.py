@@ -1,17 +1,29 @@
-# coding=utf-8
-import tensorflow as tf
-import numpy as np
+# author - Richard Liao
+# Dec 26 2016
 import os
-import time
-import datetime
-from keras.utils.np_utils import to_categorical
+import numpy as np
+
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
-from sklearn.metrics import precision_score, recall_score, f1_score
-from Scripts.data_helper import get_clean_data
-from Scripts.utils import split_train_val, batch_iter
-from Scripts.models.textCNN import TextCNN
+from keras.utils.np_utils import to_categorical
 
+from keras.layers import Embedding
+from keras.layers import Dense, Input, Flatten
+from keras.layers import Conv1D, GlobalMaxPool1D, MaxPooling1D, Embedding, Merge, Dropout, LSTM, GRU, Bidirectional
+from keras.models import Model
+
+from keras import backend as K
+from keras.engine.topology import Layer, InputSpec
+
+from Scripts.data_helper import get_clean_data
+from Scripts.utils import split_train_val, eval
+from Scripts.config import *
+
+MAX_SEQUENCE_LENGTH = 500
+MAX_NB_WORDS = 5000
+EMBEDDING_DIM = 100
+VALIDATION_SPLIT = 0.2
+char_filters = '!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n，。！？“‘、（）……【】：《》'
 
 
 def preprocess(filename, char_level=False):
@@ -23,91 +35,80 @@ def preprocess(filename, char_level=False):
     # build vocabulary
     vocab_size = 5000
     max_document_length = 500
-    tokenizer = Tokenizer(num_words=vocab_size, char_level=char_level)
+    tokenizer = Tokenizer(filters=char_filters, num_words=vocab_size, char_level=char_level)
     tokenizer.fit_on_texts(x_text)
     x_seqs = tokenizer.texts_to_sequences(x_text)
     x = pad_sequences(x_seqs, maxlen=max_document_length, truncating='post', padding='post')
-    x_train, y_train, x_val, y_val = split_train_val(x, y, split_rate=0.8)
     print("Vocabulary Size: {:d}".format(len(tokenizer.word_index)))
-    print("Train: {:d}\nVal: {:d}".format(len(y_train), len(y_val)))
+    print('Shape of data tensor:', x.shape)
+    print('Shape of label tensor:', y.shape)
+
+    x_train, y_train, x_val, y_val = split_train_val(x, y, split_rate=0.8)
+    print('amount of train samples:', y_train.shape[0])
+    print('amount of val samples:', y_val.shape[0])
+    print('number of positive and negative reviews:')
+    print('train:', y_train.sum(axis=0))
+    print('val:', y_val.sum(axis=0))
+
     return x_train, y_train, x_val, y_val, tokenizer
 
 
-def train(x_train, y_train, x_val, y_val, vocab_size, num_epochs=30):
-    # Training
-    # ==================================================
+train_csvs = [FINACE_TRAIN_PATH, TECH_TRAIN_PATH, WORLD_TRAIN_PATH, NEW_JIEDU_TRAIN_PATH]
+train_path = train_csvs[3]
+test_csvs = [FINACE_TEST_PATH, TECH_TEST_PATH, WORLD_TEST_PATH, NEW_JIEDU_TEST_PATH]
+test_path = test_csvs[3]
 
-    with tf.Graph().as_default():
-        sess = tf.Session()
-        with sess.as_default():
-            cnn = TextCNN(sequnce_length=x_train.shape[1],
-                          num_classes=y_train.shape[1],
-                          vocab_size=vocab_size,
-                          embedding_size=300,
-                          filter_sizes=[3, 4, 5],
-                          num_filters=256,
-                          l2_reg_lambda=0.0)
+x_train, y_train, x_val, y_val, tokenizer = preprocess(train_path)
 
-            # define training procedure
-            global_step = tf.Variable(0, name="global_step", trainable=False)
-            optimizer = tf.train.AdamOptimizer(1e-3)
-            grads_and_vars = optimizer.compute_gradients(cnn.loss)
-            train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
-
-            # keep track of gradient values and sparsity(optional)
-            # ......
-
-            # Initializer all variables
-            sess.run(tf.global_variables_initializer())
-
-            def train_step(x_batch, y_batch):
-                feed_dict = {cnn.input_x: x_batch,
-                             cnn.input_y: y_batch,
-                             cnn.dropout_keep_prob: 0.5}
-
-                _, step, loss, acc = sess.run([train_op,
-                                                             global_step,
-                                                             cnn.loss,
-                                                             cnn.accuracy], feed_dict)
-                print("Step: {}\ttrain loss: {:.4f}\ttrain acc: {:.2%}".format(step, loss, acc))
-
-            def evaluate(x_, y_, batch_size=128):
-                total_loss = 0.0
-                data_len = len(x_)
-                num_batch = int((data_len - 1) / batch_size) + 1
-
-                y_true = np.argmax(y_, 1)
-                y_pred = np.zeros(shape=len(x_), dtype=np.int32)  # 保存预测结果
-                for i in range(num_batch):  # 逐批次处理
-                    start_id = i * batch_size
-                    end_id = min((i + 1) * batch_size, data_len)
-                    feed_dict = {cnn.input_x: x_[start_id:   end_id],
-                                 cnn.input_y: y_[start_id: end_id],
-                                 cnn.dropout_keep_prob: 1.0}
-
-                    loss, y_pred[start_id:end_id] = sess.run([cnn.loss, cnn.predictions], feed_dict=feed_dict)
-                    total_loss += batch_size * loss
-
-                print("val loss: {:.4f}\tprecision: {:.2%}\trecall: {:.2%}\tf1_score: {:.2%}"
-                      .format(total_loss / data_len,
-                              precision_score(y_true, y_pred),
-                              recall_score(y_true, y_pred),
-                              f1_score(y_true, y_pred)))
-
-            # num_epochs = 30
-            for epoch in range(num_epochs):
-                print("Epoch--{}:".format(epoch + 1))
-                for x_batch, y_batch in batch_iter(x_train, y_train, batch_size=64):
-                    train_step(x_batch, y_batch)
-                evaluate(x_val, y_val)
-            print("train finished.")
+vocab_size = len(tokenizer.word_index)
 
 
-def main():
-    data_dir = os.path.join(os.path.abspath('..'), 'data')
-    tech_path = os.path.join(data_dir, 'tech_data', 'tech_train.csv')
-    x_train, y_train, x_val, y_val, tokenizer = preprocess(tech_path)
-    train(x_train, y_train, x_val, y_val, len(tokenizer.word_index))
+embedding_matrix = np.random.random((vocab_size + 1, EMBEDDING_DIM))
 
-# if __name__ == '__main__':
-#     main()
+embedding_layer = Embedding(vocab_size + 1,
+                            EMBEDDING_DIM,
+                            weights=[embedding_matrix],
+                            input_length=500,
+                            trainable=True)
+
+sequence_input = Input(shape=(500,), dtype='int32')
+embedded_sequences = embedding_layer(sequence_input)
+# textCNN
+pooled_outputs = []
+filter_sizes = [3, 4, 5]
+num_filters = 128
+for filter_size in filter_sizes:
+    l_conv = Conv1D(filters=num_filters, kernel_size=filter_size, activation='relu')(embedded_sequences)
+    l_pool = GlobalMaxPool1D()(l_conv)
+    pooled_outputs.append(l_pool)
+
+l_merge = Merge(mode='concat', concat_axis=1)(pooled_outputs)
+l_dense = Dense(128, activation='relu')(l_merge)
+preds = Dense(2, activation='softmax')(l_dense)
+
+model = Model(sequence_input, preds)
+model.summary()
+
+model.compile(loss='categorical_crossentropy',
+              optimizer='adam',
+              metrics=['acc'])
+
+print("model fitting - more complex convolutional neural network")
+history = model.fit(x_train, y_train, validation_data=(x_val, y_val),
+                    epochs=15, batch_size=128, verbose=2)
+
+#
+y_train_pred = np.argmax(model.predict(x_train), axis=1)
+y_train_ = np.argmax(y_train, axis=1)
+eval(y_train_, y_train_pred)
+y_val_pred = np.argmax(model.predict(x_val), axis=1)
+y_val_ = np.argmax(y_val, axis=1)
+eval(y_val_, y_val_pred)
+
+clean_content_test, labels_test = get_clean_data(test_path, train=True)
+x_test_seqs = tokenizer.texts_to_sequences(clean_content_test)
+x_test = pad_sequences(x_test_seqs, maxlen=500, truncating='post', padding='post')
+y_test = to_categorical(labels_test, num_classes=len(np.unique(labels_test)))
+y_test_pred = np.argmax(model.predict(x_test), axis=1)
+y_test_ = np.argmax(y_test, axis=1)
+eval(y_test_, y_test_pred)

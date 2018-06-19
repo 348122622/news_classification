@@ -27,7 +27,7 @@ MAX_SEQUENCE_LENGTH = 1000
 EMBEDDING_DIM = 100
 char_filters = '!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n，。！？“‘、（）……【】：《》——'
 
-def preprocess(filename):
+def preprocess(filename, char_level=False):
     # load data
     # labels type: np.array
     x_text, labels = get_clean_data(filename)
@@ -36,7 +36,7 @@ def preprocess(filename):
     # build vocabulary
     vocab_size = 5000
     max_document_length = 500
-    tokenizer = Tokenizer(filters=char_filters, num_words=vocab_size, char_level=True)
+    tokenizer = Tokenizer(filters=char_filters, num_words=vocab_size, char_level=char_level)
     tokenizer.fit_on_texts(x_text)
     x_seqs = tokenizer.texts_to_sequences(x_text)
     x = pad_sequences(x_seqs, maxlen=max_document_length, truncating='post', padding='post')
@@ -54,10 +54,10 @@ def preprocess(filename):
     return x_train, y_train, x_val, y_val, tokenizer
 
 
-train_csvs = [FINACE_TRAIN_PATH, TECH_TRAIN_PATH, WORLD_TRAIN_PATH]
-train_path = train_csvs[2]
-test_csvs = [FINACE_TEST_PATH, TECH_TEST_PATH, WORLD_TEST_PATH]
-test_path = test_csvs[2]
+train_csvs = [FINACE_TRAIN_PATH, TECH_TRAIN_PATH, WORLD_TRAIN_PATH, NEW_JIEDU_TRAIN_PATH]
+train_path = train_csvs[3]
+test_csvs = [FINACE_TEST_PATH, TECH_TEST_PATH, WORLD_TEST_PATH, NEW_JIEDU_TEST_PATH]
+test_path = test_csvs[3]
 
 x_train, y_train, x_val, y_val, tokenizer = preprocess(train_path)
 
@@ -116,7 +116,7 @@ model.compile(loss='categorical_crossentropy',
 print("model fitting - Hierachical attention network")
 history = model.fit(x_train.reshape([-1, MAX_SENTS, MAX_SENT_LENGTH]), y_train,
           validation_data=(x_val.reshape([-1, MAX_SENTS, MAX_SENT_LENGTH]), y_val),
-          nb_epoch=10, batch_size=128, verbose=2)
+          nb_epoch=7, batch_size=128, verbose=2)
 
 
 y_train_pred = np.argmax(model.predict(x_train.reshape([-1, MAX_SENTS, MAX_SENT_LENGTH])), axis=1)

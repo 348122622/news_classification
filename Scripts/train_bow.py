@@ -6,7 +6,7 @@ from sklearn.model_selection import StratifiedKFold, cross_validate
 from Scripts.data_helper import get_clean_data
 from Scripts.utils import data_to_bow, data_to_tfidf, split_train_val
 from Scripts.config import *
-
+from xgboost import XGBClassifier
 
 def train(data):
     x_train, y_train, x_val, y_val = data
@@ -26,7 +26,8 @@ def train(data):
 
 def train_cv(x, y, n_splits=5):
     cv = StratifiedKFold(n_splits=n_splits, shuffle=False, random_state=0)
-    cls = RandomForestClassifier(n_estimators=100, n_jobs=-1)
+    # cls = RandomForestClassifier(n_estimators=100, n_jobs=-1)
+    cls = GradientBoostingClassifier(n_estimators=100)
     cv_res = cross_validate(cls, x, y,
                             scoring=['precision', 'recall', 'f1'],
                             cv=cv,
@@ -47,29 +48,35 @@ def eval(y, y_pred):
 
 
 if __name__ == '__main__':
-    train_csvs = [FINACE_TRAIN_PATH, TECH_TRAIN_PATH, WORLD_TRAIN_PATH]
-    train_path = train_csvs[2]
-    test_csvs = [FINACE_TEST_PATH, TECH_TEST_PATH, WORLD_TEST_PATH]
-    test_path = test_csvs[2]
+    train_csvs = [FINACE_TRAIN_PATH, TECH_TRAIN_PATH, WORLD_TRAIN_PATH, NEW_JIEDU_TRAIN_PATH]
+    train_path = train_csvs[3]
+    test_csvs = [FINACE_TEST_PATH, TECH_TEST_PATH, WORLD_TEST_PATH, NEW_JIEDU_TEST_PATH]
+    test_path = test_csvs[3]
 
     # train and val data preprocessing
     clean_content, labels = get_clean_data(train_path, train=True)
     clean_content_test, labels_test = get_clean_data(test_path, train=True)
 
-    # data_features, vectorizer = data_to_bow(clean_content, analyzer="char",
-    #                                         ngram_range=(1, 3), max_text_len=5000)
-    data_features, vectorizer = data_to_tfidf(clean_content, analyzer="char",
-                                              ngram_range=(1, 3), max_text_len=5000)
+    data_features, vectorizer = data_to_bow(clean_content, analyzer="word",
+                                            ngram_range=(1, 1), max_text_len=5000)
+    # data_features, vectorizer = data_to_tfidf(clean_content, analyzer="char",
+    #                                           ngram_range=(1, 3), max_text_len=5000)
 
     # test data preprocessing
 
     data_features_test = vectorizer.transform(clean_content_test).toarray()
 
-    # cross validation
-    cv_results = train_cv(data_features, labels)
+    # # cross validation
+    # cv_results = train_cv(data_features, labels)
 
     # train
-    cls = RandomForestClassifier(n_estimators=100, n_jobs=-1)
+    # cls = RandomForestClassifier(n_estimators=100, n_jobs=-1)
+    # cls = GradientBoostingClassifier(n_estimators=100)
+    cls = XGBClassifier(max_depth=6,
+                        learning_rate=0.05,
+                        n_estimators=300,
+                        n_jobs=-1,
+                        scale_pos_weight=(len(labels) - sum(labels)) / sum(labels))
     cls.fit(data_features, labels)
     labels_pred = cls.predict(data_features)
     eval(labels, labels_pred)

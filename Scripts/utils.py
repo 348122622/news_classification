@@ -63,3 +63,31 @@ def eval(y, y_pred):
     print(confusion_matrix(y, y_pred))
 
 
+def plot_acc(history):
+    """
+    显示accuaray曲线
+    :param history: keras 训练历史信息, dict
+    :return:
+    """
+    plt.plot(history.history['acc'])
+    plt.plot(history.history['val_acc'])
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.show()
+
+
+def plot_loss(history):
+    """
+    显示loss曲线
+    :param history: keras 训练历史信息, dict
+    :return:
+    """
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.show()

@@ -1,4 +1,7 @@
 # coding=utf-8
+import requests
+import json
+from bs4 import BeautifulSoup as bs
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -93,19 +96,54 @@ def max_len(content_list):
     return max_length
 
 
+def get_content(cmid):
+    url = 'http://newsarticle.cms.webdev.com/newsarticle/news/getOMArticleById?articleId=' + cmid[:-2]
+    try:
+        res = json.loads(requests.get(url).content)
+        content_str = res['response']['data']['content']
+    except:
+        print("爬取异常")
+        return ''
+    else:
+        soup = bs(content_str, 'html.parser')
+        content_str = soup.get_text().strip()
+        return content_str
+
+
+def jiedu_data_prepare(input_csv, output_csv):
+    data = pd.read_csv(input_csv, header=0, encoding='utf-8')
+    data['cmid'] = data['url'].apply(lambda x: x.split('/')[-1].strip())
+    data['内容'] = data['cmid'].apply(lambda x: get_content(x))
+    data['类别'] = data['解读评论']
+    data[['类别', 'cmid', '标题', '内容']].to_csv(output_csv, index=False, encoding='utf8')
+    print("data prepared.")
+    return data
+
 if __name__ == '__main__':
+    # file to csv
     # labels, cmid, title, content = open_file(world_test_path)
     # to_csv(os.path.join(data_dir, 'world_data', 'world_test.csv'), labels, cmid, title, content)
-    # train_index, test_index, labels, cmid, title, content = split_data(os.path.join(data_dir, 'finance_data', 'finance.csv'))
-    # labels_train = labels[train_index]
-    # cmid_train = cmid[train_index]
-    # title_train = title[train_index]
-    # content_train = content[train_index]
-    # to_csv(os.path.join(data_dir, 'finance_data', 'finance_train.csv'), labels_train, cmid_train, title_train, content_train)
+
+    # split train and test set
+    all_path = NEW_JIEDU_PATH
+    train_path = NEW_JIEDU_TRAIN_PATH
+    test_path = NEW_JIEDU_TEST_PATH
+
+    train_index, test_index, labels, cmid, title, content = split_data(all_path)
+    labels_train = labels[train_index]
+    cmid_train = cmid[train_index]
+    title_train = title[train_index]
+    content_train = content[train_index]
+    to_csv(train_path, labels_train, cmid_train, title_train, content_train)
     #
-    # labels_test = labels[test_index]
-    # cmid_test = cmid[test_index]
-    # title_test = title[test_index]
-    # content_test = content[test_index]
-    # to_csv(os.path.join(data_dir, 'finance_data', 'finance_test.csv'), labels_test, cmid_test, title_test, content_test)
-    content, labels = get_clean_data(FINACE_TRAIN_PATH)
+    labels_test = labels[test_index]
+    cmid_test = cmid[test_index]
+    title_test = title[test_index]
+    content_test = content[test_index]
+    to_csv(test_path, labels_test, cmid_test, title_test, content_test)
+
+
+    # content, labels = get_clean_data(FINACE_TRAIN_PATH)
+    # JIEDU_PATH = os.path.join(DATA_DIR, 'jiedu', 'new_jiedu_data.csv')
+    # output = os.path.join(DATA_DIR, 'jiedu', 'new_jiedu.csv')
+    # df = jiedu_data_prepare(JIEDU_PATH, output)
